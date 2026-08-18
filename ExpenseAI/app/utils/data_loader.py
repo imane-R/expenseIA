@@ -1,7 +1,7 @@
 """Chargement des dépenses normalisées depuis PostgreSQL.
 
-Ce module constitue l'unique source de données du dashboard. Il ne lit ni le
-fichier Excel brut, ni les exports présents dans ``data/processed``.
+Ce module constitue la source de données commune du dashboard et de la page
+d'analyse. Il ne lit ni la zone de staging, ni les exports locaux.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from database.connection import create_db_engine
 EXPENSES_ANALYTICS_SQL = text(
     """
     SELECT
-        e.expense_group,
         e.expense_date,
         et.name AS expense_type,
         e.amount_ttc,
@@ -34,7 +33,7 @@ EXPENSES_ANALYTICS_SQL = text(
 
 
 def load_expenses() -> pd.DataFrame:
-    """Retourne les données analytiques issues des tables normalisées."""
+    """Retourne les données du dashboard issues des tables normalisées."""
     engine = create_db_engine()
     try:
         with engine.connect() as connection:
@@ -56,3 +55,26 @@ def load_expenses() -> pd.DataFrame:
     ).astype("Int64")
     dataframe["billable"] = dataframe["billable"].astype("boolean")
     return dataframe
+
+
+def load_analysis_data() -> pd.DataFrame:
+    """Retourne un périmètre analytique sans identifiant ni code projet réel."""
+    dataframe = load_expenses()
+    dataframe["project_status"] = dataframe["project_code"].map(
+        lambda value: "Sans projet" if value == "SANS_PROJET" else "Avec projet"
+    )
+    project_values = dataframe["project_code"].where(
+        dataframe["project_code"].ne("SANS_PROJET")
+    )
+    dataframe["_project_key"] = pd.factorize(project_values, sort=True)[0]
+    return dataframe[
+        [
+            "expense_date",
+            "expense_type",
+            "amount_ttc",
+            "billable",
+            "project_status",
+            "_project_key",
+            "target",
+        ]
+    ].copy()

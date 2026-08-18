@@ -29,7 +29,7 @@ INSERT_PREDICTION_SQL = text(
     """
 )
 
-RECENT_PREDICTIONS_SQL = text(
+PREDICTION_HISTORY_SQL = text(
     """
     SELECT
         created_at,
@@ -135,12 +135,23 @@ def load_recent_predictions(
     if not 1 <= limit <= 100:
         raise ValueError("limit doit être compris entre 1 et 100.")
 
+    return load_prediction_history(limit=limit, engine=engine)
+
+
+def load_prediction_history(
+    limit: int = 5_000,
+    engine: Engine | None = None,
+) -> list[dict[str, Any]]:
+    """Retourne l'historique utilisateur, limité et sans identifiant technique."""
+    if not 1 <= limit <= 5_000:
+        raise ValueError("limit doit être compris entre 1 et 5 000.")
+
     owns_engine = engine is None
     active_engine = engine or create_db_engine()
     try:
         with active_engine.connect() as connection:
             rows = connection.execute(
-                RECENT_PREDICTIONS_SQL,
+                PREDICTION_HISTORY_SQL,
                 {"limit": limit},
             ).mappings().all()
     finally:

@@ -14,7 +14,7 @@ from app.utils.prediction_service import (
     percentage_to_tax_rate,
     submit_prediction,
 )
-from database.prediction_repository import save_prediction
+from database.prediction_repository import load_prediction_history, save_prediction
 
 
 class TestPredictionFeatures(TestCase):
@@ -144,4 +144,27 @@ class TestPredictionSubmission(TestCase):
         self.assertEqual(parameters["predicted_target"], 1)
         self.assertEqual(parameters["probability"], Decimal("0.06812"))
         self.assertIsNone(parameters["expense_id"])
+        engine.dispose.assert_not_called()
+
+    def test_history_repository_returns_only_user_columns(self) -> None:
+        engine = MagicMock()
+        connection = MagicMock()
+        engine.connect.return_value.__enter__.return_value = connection
+        connection.execute.return_value.mappings.return_value.all.return_value = [
+            {
+                "created_at": "2026-08-18 12:00:00",
+                "predicted_target": 1,
+                "probability": Decimal("0.06812"),
+                "model_version": "synthetic-test",
+            }
+        ]
+
+        rows = load_prediction_history(limit=50, engine=engine)
+
+        self.assertEqual(
+            set(rows[0]),
+            {"created_at", "predicted_target", "probability", "model_version"},
+        )
+        parameters = connection.execute.call_args.args[1]
+        self.assertEqual(parameters, {"limit": 50})
         engine.dispose.assert_not_called()
