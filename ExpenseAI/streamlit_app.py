@@ -20,7 +20,7 @@ pages = {
             title="Analyse des données",
             icon="🔎",
         ),
-        st.Page("app/pages/3_Prediction_IA.py", title="Prédiction IA", icon="🤖"),
+        st.Page("app/pages/3_Prediction_IA.py", title="Prédiction", icon="🤖"),
         st.Page("app/pages/4_Historique.py", title="Historique", icon="🕘"),
         st.Page("app/pages/5_A_propos.py", title="À propos", icon="ℹ️"),
     ]
