@@ -1,0 +1,75 @@
+# Environnements et secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Modèles et artefacts générés
+*.joblib
+*.pkl
+models/
+artifacts/
+
+# Sauvegardes PostgreSQL contenant potentiellement des données réelles
+*.dump
+*.backup
+*.sql.gz
+
+# Données : seules les données explicitement anonymisées ou d'exemple sont suivies
+*.xlsx
+*.xls
+*.xlsm
+!**/*_example.xlsx
+!**/*_anonymized.xlsx
+!**/*_example.xls
+!**/*_anonymized.xls
+!**/*_example.xlsm
+!**/*_anonymized.xlsm
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/raw/README.md
+!data/processed/README.md
+!data/raw/*_example.*
+!data/raw/*_anonymized.*
+!data/processed/*_example.*
+!data/processed/*_anonymized.*
+
+# Fichiers temporaires et journaux
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+.cache/
+
+# Fichiers système et IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
