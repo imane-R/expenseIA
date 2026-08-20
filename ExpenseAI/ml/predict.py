@@ -6,13 +6,25 @@ complet sauvegardé par ``06_final_model.ipynb`` et applique le seuil verrouill�
 
 from __future__ import annotations
 
+from time import perf_counter
+
+MODULE_STARTED_AT = perf_counter()
+
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 import warnings
 
 import joblib
+from perf_diagnostics import log_duration
+
+JOBLIB_IMPORTED_AT = perf_counter()
 import pandas as pd
+
+
+log_duration("ML predict - import joblib", MODULE_STARTED_AT)
+log_duration("ML predict - import pandas", JOBLIB_IMPORTED_AT)
+log_duration("ML predict - imports totaux", MODULE_STARTED_AT)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +43,7 @@ def load_model_artifact(
     artifact_path: str | Path = DEFAULT_ARTIFACT_PATH,
 ) -> dict[str, Any]:
     """Charge et valide la structure minimale de l'artefact ExpenseAI."""
+    total_started_at = perf_counter()
     resolved_path = Path(artifact_path).expanduser().resolve()
     if not resolved_path.is_file():
         raise FileNotFoundError(f"Artefact ExpenseAI introuvable : {resolved_path}")
@@ -44,7 +57,9 @@ def load_model_artifact(
             message="Setting the shape on a NumPy array has been deprecated.*",
             category=DeprecationWarning,
         )
+        load_started_at = perf_counter()
         artifact = joblib.load(resolved_path)
+        log_duration("Prédiction - chargement joblib", load_started_at)
     if not isinstance(artifact, dict):
         raise TypeError("L'artefact ExpenseAI doit être un dictionnaire.")
 
@@ -54,6 +69,7 @@ def load_model_artifact(
             "Artefact ExpenseAI incomplet. Clés absentes : "
             + ", ".join(sorted(missing_keys))
         )
+    log_duration("Prédiction - artefact total", total_started_at)
     return artifact
 
 
@@ -89,6 +105,14 @@ def predict_expense(
     préserver les groupes pendant l'évaluation et n'est jamais une feature.
     """
     artifact = load_model_artifact(artifact_path)
+    return predict_expense_with_artifact(expense_data, artifact)
+
+
+def predict_expense_with_artifact(
+    expense_data: Mapping[str, Any] | pd.DataFrame,
+    artifact: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Prédit avec un artefact déjà chargé, sans changer la logique ML."""
     expected_features = list(artifact["features"])
     frame = _prepare_input(expense_data, expected_features)
 

@@ -8,10 +8,6 @@ from datetime import date, datetime
 import math
 from typing import Any
 
-from database.prediction_repository import save_prediction
-from ml.predict import predict_expense
-
-
 WITHOUT_PROJECT_LABEL = "Sans projet"
 WITHOUT_PROJECT_CODE = "SANS_PROJET"
 
@@ -91,10 +87,18 @@ def build_expense_data(
 
 def submit_prediction(
     expense_data: Mapping[str, Any],
-    predictor: Callable[[Mapping[str, Any]], dict[str, Any]] = predict_expense,
-    saver: Callable[..., int] = save_prediction,
+    predictor: Callable[[Mapping[str, Any]], dict[str, Any]] | None = None,
+    saver: Callable[..., int] | None = None,
 ) -> PredictionSubmission:
     """Prédit une fois et tente un seul INSERT pour une soumission réelle."""
+    if predictor is None:
+        from app.utils.model_resource import predict_expense_cached
+
+        predictor = predict_expense_cached
+    if saver is None:
+        from database.prediction_repository import save_prediction
+
+        saver = save_prediction
     prediction = predictor(expense_data)
     score_key = "probability" if "probability" in prediction else "risk_score"
     try:

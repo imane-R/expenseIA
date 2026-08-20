@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
 import math
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import Engine, text
 
 from database.connection import create_db_engine
+from perf_diagnostics import log_duration
 
 
 INSERT_PREDICTION_SQL = text(
@@ -42,18 +44,17 @@ PREDICTION_HISTORY_SQL = text(
     """
 )
 
-EXPENSE_TYPES_SQL = text(
-    "SELECT name FROM expense_types ORDER BY name"
-)
-PROJECTS_SQL = text(
-    "SELECT code FROM projects ORDER BY code"
-)
-TAX_RATES_SQL = text(
+PREDICTION_OPTIONS_SQL = text(
     """
-    SELECT DISTINCT tax_rate
-    FROM expenses
-    WHERE tax_rate IS NOT NULL
-    ORDER BY tax_rate
+    SELECT
+        ARRAY(SELECT name FROM expense_types ORDER BY name) AS expense_types,
+        ARRAY(SELECT code FROM projects ORDER BY code) AS projects,
+        ARRAY(
+            SELECT DISTINCT tax_rate
+            FROM expenses
+            WHERE tax_rate IS NOT NULL
+            ORDER BY tax_rate
+        ) AS tax_rates
     """
 )
 
@@ -66,26 +67,31 @@ def _dispose_owned_engine(engine: Engine, owns_engine: bool) -> None:
 
 def load_prediction_options(engine: Engine | None = None) -> dict[str, list[Any]]:
     """Charge les référentiels utiles au formulaire, sans donnée individuelle."""
+    total_started_at = perf_counter()
     owns_engine = engine is None
+    engine_started_at = perf_counter()
     active_engine = engine or create_db_engine()
+    log_duration("Prédiction - création engine PostgreSQL", engine_started_at)
     try:
+        connection_started_at = perf_counter()
         with active_engine.connect() as connection:
-            expense_types = list(
-                connection.execute(EXPENSE_TYPES_SQL).scalars().all()
-            )
-            projects = list(connection.execute(PROJECTS_SQL).scalars().all())
-            tax_rates = [
-                float(value)
-                for value in connection.execute(TAX_RATES_SQL).scalars().all()
-            ]
+            log_duration("Prédiction - connexion PostgreSQL", connection_started_at)
+            query_started_at = perf_counter()
+            row = connection.execute(PREDICTION_OPTIONS_SQL).mappings().one()
+            expense_types = list(row["expense_types"] or [])
+            projects = list(row["projects"] or [])
+            tax_rates = [float(value) for value in (row["tax_rates"] or [])]
+            log_duration("Prédiction - requête unique référentiels", query_started_at)
     finally:
         _dispose_owned_engine(active_engine, owns_engine)
 
-    return {
+    result = {
         "expense_types": expense_types,
         "projects": projects,
         "tax_rates": tax_rates,
     }
+    log_duration("Prédiction - référentiels repository", total_started_at)
+    return result
 
 
 def save_prediction(

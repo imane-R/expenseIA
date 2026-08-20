@@ -54,13 +54,23 @@ def build_database_url() -> URL:
 
 def create_db_engine() -> Engine:
     """Crée un moteur SQLAlchemy ; la connexion reste ouverte à la demande."""
-    return create_engine(build_database_url(), pool_pre_ping=True)
+    return create_engine(
+        build_database_url(),
+        pool_pre_ping=True,
+        pool_recycle=1_800,
+        connect_args={
+            "connect_timeout": 5,
+            "options": "-c statement_timeout=15000",
+        },
+    )
 
 
 def check_database_connection(engine: Engine | None = None) -> tuple[bool, str]:
     """Teste PostgreSQL et retourne un résultat exploitable par une interface."""
+    owns_engine = engine is None
+    active_engine = engine
     try:
-        active_engine = engine or create_db_engine()
+        active_engine = active_engine or create_db_engine()
         with active_engine.connect() as connection:
             database_name = connection.execute(text("SELECT current_database()"))
             database_name = database_name.scalar_one()
@@ -70,6 +80,9 @@ def check_database_connection(engine: Engine | None = None) -> tuple[bool, str]:
             "Connexion PostgreSQL impossible (%s).", type(exc).__name__
         )
         return False, "Connexion PostgreSQL indisponible. Vérifiez .env et le serveur."
+    finally:
+        if owns_engine and active_engine is not None:
+            active_engine.dispose()
 
 
 def test_connection(engine: Engine | None = None) -> bool:
@@ -92,6 +105,8 @@ def get_db_session(engine: Engine | None = None) -> Iterator[Session]:
         raise
     finally:
         session.close()
+        if engine is None:
+            active_engine.dispose()
 
 
 if __name__ == "__main__":

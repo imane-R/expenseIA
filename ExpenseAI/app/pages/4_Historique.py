@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from time import perf_counter
+
+PAGE_STARTED_AT = perf_counter()
+
 import logging
 
 import pandas as pd
@@ -9,17 +13,29 @@ import plotly.express as px
 import streamlit as st
 
 from database.prediction_repository import load_prediction_history
+from perf_diagnostics import log_duration
+
+
+log_duration("Historique - imports", PAGE_STARTED_AT)
 
 
 LOGGER = logging.getLogger(__name__)
-MAX_HISTORY_ROWS = 5_000
+MAX_HISTORY_ROWS = 500
 RESULT_LABELS = {0: "Risque non signalé", 1: "À examiner"}
 RESULT_COLORS = {"Risque non signalé": "#2563EB", "À examiner": "#DC2626"}
 
 
+@st.cache_data(ttl=30, show_spinner="Chargement de l’historique…")
 def load_history_data() -> pd.DataFrame:
-    """Charge l'historique courant sans cache permanent ni identifiant."""
-    history = pd.DataFrame(load_prediction_history(limit=MAX_HISTORY_ROWS))
+    """Charge un instantané court, rafraîchissable et sans identifiant."""
+    from app.utils.db_resources import get_database_engine
+
+    history = pd.DataFrame(
+        load_prediction_history(
+            limit=MAX_HISTORY_ROWS,
+            engine=get_database_engine(),
+        )
+    )
     if history.empty:
         return history
     history["created_at"] = pd.to_datetime(history["created_at"], errors="coerce")
@@ -44,11 +60,13 @@ st.caption(
     "Ils ne correspondent pas aux décisions réelles des valideurs."
 )
 
-st.button(
+if st.button(
     "Actualiser l’historique",
     help="Recharge immédiatement les prédictions enregistrées dans PostgreSQL.",
-)
+):
+    load_history_data.clear()
 
+data_started_at = perf_counter()
 try:
     history = load_history_data()
 except Exception as exc:
@@ -58,6 +76,7 @@ except Exception as exc:
         "Vérifiez la connexion PostgreSQL puis réessayez."
     )
     st.stop()
+log_duration("Historique - données PostgreSQL", data_started_at)
 
 if history.empty:
     st.info("Aucune analyse n’a encore été enregistrée.")
@@ -212,3 +231,5 @@ if len(history) == MAX_HISTORY_ROWS:
         f"L’affichage est limité aux {format_count(MAX_HISTORY_ROWS)} prédictions "
         "les plus récentes afin de préserver les performances."
     )
+
+log_duration("Historique - total", PAGE_STARTED_AT)

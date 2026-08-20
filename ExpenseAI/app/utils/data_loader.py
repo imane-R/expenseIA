@@ -7,7 +7,8 @@ d'analyse. Il ne lit ni la zone de staging, ni les exports locaux.
 from __future__ import annotations
 
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import Engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from database.connection import create_db_engine
 
@@ -32,14 +33,29 @@ EXPENSES_ANALYTICS_SQL = text(
 )
 
 
-def load_expenses() -> pd.DataFrame:
-    """Retourne les données du dashboard issues des tables normalisées."""
-    engine = create_db_engine()
+def _read_expenses(engine: Engine) -> pd.DataFrame:
+    """Exécute la lecture normalisée sur une connexion toujours refermée."""
+    with engine.connect() as connection:
+        return pd.read_sql(EXPENSES_ANALYTICS_SQL, connection)
+
+
+def load_expenses(engine: Engine | None = None) -> pd.DataFrame:
+    """Retourne les dépenses et renouvelle une fois un pool devenu invalide."""
+    owns_engine = engine is None
+    active_engine = engine or create_db_engine()
     try:
-        with engine.connect() as connection:
-            dataframe = pd.read_sql(EXPENSES_ANALYTICS_SQL, connection)
+        try:
+            dataframe = _read_expenses(active_engine)
+        except SQLAlchemyError:
+            # Un processus Streamlit ancien peut conserver une connexion devenue
+            # invalide. Recréer le pool une fois évite de laisser Dashboard et
+            # Analyse bloqués tout en conservant une erreur rapide si la base est
+            # réellement indisponible.
+            active_engine.dispose()
+            dataframe = _read_expenses(active_engine)
     finally:
-        engine.dispose()
+        if owns_engine:
+            active_engine.dispose()
 
     dataframe["expense_date"] = pd.to_datetime(
         dataframe["expense_date"], errors="coerce"
@@ -57,9 +73,9 @@ def load_expenses() -> pd.DataFrame:
     return dataframe
 
 
-def load_analysis_data() -> pd.DataFrame:
+def load_analysis_data(engine: Engine | None = None) -> pd.DataFrame:
     """Retourne un périmètre analytique sans identifiant ni code projet réel."""
-    dataframe = load_expenses()
+    dataframe = load_expenses(engine=engine)
     dataframe["project_status"] = dataframe["project_code"].map(
         lambda value: "Sans projet" if value == "SANS_PROJET" else "Avec projet"
     )

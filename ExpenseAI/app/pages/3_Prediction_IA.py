@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from time import perf_counter
+
+PAGE_STARTED_AT = perf_counter()
+
 from datetime import date
 import logging
 
-import pandas as pd
 import streamlit as st
 
 from app.utils.prediction_service import (
@@ -13,27 +16,42 @@ from app.utils.prediction_service import (
     build_expense_data,
     submit_prediction,
 )
-from database.prediction_repository import (
-    load_prediction_options,
-    load_recent_predictions,
-)
-from ml.model_metadata import load_model_metadata
+from app.utils.metadata_resource import load_model_metadata_cached
+from perf_diagnostics import log_duration
+
+
+log_duration("Prédiction - imports Python", PAGE_STARTED_AT)
 
 
 LOGGER = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = 600
+HISTORY_TTL_SECONDS = 30
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner="Chargement des référentiels…")
 def load_form_options() -> dict[str, list[object]]:
     """Charge les types, projets et taux réellement présents dans PostgreSQL."""
-    return load_prediction_options()
+    from app.utils.db_resources import get_database_engine
+    from database.prediction_repository import load_prediction_options
+
+    return load_prediction_options(engine=get_database_engine())
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=HISTORY_TTL_SECONDS, show_spinner=False)
 def load_recent_history() -> list[dict[str, object]]:
     """Charge un historique anonyme et volontairement limité."""
-    return load_recent_predictions(limit=10)
+    from app.utils.db_resources import get_database_engine
+    from database.prediction_repository import load_recent_predictions
+
+    return load_recent_predictions(limit=10, engine=get_database_engine())
+
+
+def save_prediction_shared(**prediction: object) -> int:
+    """Enregistre avec le pool partagé, sans conserver le résultat en cache."""
+    from app.utils.db_resources import get_database_engine
+    from database.prediction_repository import save_prediction
+
+    return save_prediction(engine=get_database_engine(), **prediction)
 
 
 def format_tax_rate(tax_rate: float) -> str:
@@ -53,13 +71,16 @@ st.write(
     "ne remplace pas la validation humaine."
 )
 
+metadata_started_at = perf_counter()
 try:
-    metadata = load_model_metadata()
+    metadata = load_model_metadata_cached()
 except Exception as exc:
     LOGGER.exception("Métadonnées ML indisponibles", exc_info=exc)
     st.error("Le modèle ExpenseAI n'est pas disponible.")
     st.stop()
+log_duration("Prédiction - metadata JSON", metadata_started_at)
 
+options_started_at = perf_counter()
 try:
     options = load_form_options()
 except Exception as exc:
@@ -69,6 +90,7 @@ except Exception as exc:
         "indisponibles. Vérifiez la connexion PostgreSQL puis réessayez."
     )
     st.stop()
+log_duration("Prédiction - référentiels PostgreSQL", options_started_at)
 
 expense_types = [str(value) for value in options["expense_types"]]
 project_options = [WITHOUT_PROJECT_LABEL, *map(str, options["projects"])]
@@ -77,6 +99,7 @@ if not expense_types or not tax_rates:
     st.error("Les référentiels PostgreSQL sont incomplets pour réaliser une analyse.")
     st.stop()
 
+form_started_at = perf_counter()
 with st.form("expense_prediction_form", clear_on_submit=False):
     left_column, right_column = st.columns(2)
     with left_column:
@@ -113,8 +136,10 @@ with st.form("expense_prediction_form", clear_on_submit=False):
         type="primary",
         width="stretch",
     )
+log_duration("Prédiction - rendu du formulaire", form_started_at)
 
 if submitted:
+    submission_started_at = perf_counter()
     try:
         expense_data = build_expense_data(
             expense_date=selected_date,
@@ -124,7 +149,7 @@ if submitted:
             project_selection=selected_project,
             tax_rate=selected_tax_rate,
         )
-        submission = submit_prediction(expense_data)
+        submission = submit_prediction(expense_data, saver=save_prediction_shared)
     except FileNotFoundError:
         st.error("Le modèle ExpenseAI n'est pas disponible.")
     except Exception as exc:
@@ -145,6 +170,7 @@ if submitted:
                 "Prédiction calculée mais historique non enregistré (%s)",
                 type(submission.history_error).__name__,
             )
+    log_duration("Prédiction - modèle et sauvegarde", submission_started_at)
 
 last_submission = st.session_state.get("last_expenseai_prediction")
 if last_submission:
@@ -242,6 +268,7 @@ with st.expander("Performance du modèle sur le jeu de test"):
     )
 
 st.subheader("Historique récent des analyses")
+history_started_at = perf_counter()
 try:
     history_rows = load_recent_history()
 except Exception as exc:
@@ -251,19 +278,23 @@ else:
     if not history_rows:
         st.info("Aucune analyse manuelle n'a encore été enregistrée.")
     else:
-        history = pd.DataFrame(history_rows)
-        history["Résultat"] = history["predicted_target"].map(
-            {0: "Risque non signalé", 1: "À examiner"}
-        )
-        history["Probabilité estimée"] = history["probability"].map(
-            lambda value: format_percentage(float(value))
-        )
-        history["Date"] = pd.to_datetime(history["created_at"]).dt.strftime(
-            "%d/%m/%Y %H:%M"
-        )
-        history = history.rename(columns={"model_version": "Version"})
+        history = [
+            {
+                "Date": row["created_at"].strftime("%d/%m/%Y %H:%M"),
+                "Résultat": (
+                    "À examiner"
+                    if int(row["predicted_target"]) == 1
+                    else "Risque non signalé"
+                ),
+                "Probabilité estimée": format_percentage(float(row["probability"])),
+                "Version": str(row["model_version"]),
+            }
+            for row in history_rows
+        ]
         st.dataframe(
-            history[["Date", "Résultat", "Probabilité estimée", "Version"]],
+            history,
             hide_index=True,
             width="stretch",
         )
+log_duration("Prédiction - historique récent", history_started_at)
+log_duration("Prédiction - total", PAGE_STARTED_AT)

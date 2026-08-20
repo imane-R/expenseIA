@@ -14,7 +14,11 @@ from app.utils.prediction_service import (
     percentage_to_tax_rate,
     submit_prediction,
 )
-from database.prediction_repository import load_prediction_history, save_prediction
+from database.prediction_repository import (
+    load_prediction_history,
+    load_prediction_options,
+    save_prediction,
+)
 
 
 class TestPredictionFeatures(TestCase):
@@ -167,4 +171,22 @@ class TestPredictionSubmission(TestCase):
         )
         parameters = connection.execute.call_args.args[1]
         self.assertEqual(parameters, {"limit": 50})
+        engine.dispose.assert_not_called()
+
+    def test_prediction_options_use_one_database_query(self) -> None:
+        engine = MagicMock()
+        connection = MagicMock()
+        engine.connect.return_value.__enter__.return_value = connection
+        connection.execute.return_value.mappings.return_value.one.return_value = {
+            "expense_types": ["TYPE_A", "TYPE_B"],
+            "projects": ["PROJET_A"],
+            "tax_rates": [Decimal("0.00"), Decimal("0.20")],
+        }
+
+        options = load_prediction_options(engine=engine)
+
+        connection.execute.assert_called_once()
+        self.assertEqual(options["expense_types"], ["TYPE_A", "TYPE_B"])
+        self.assertEqual(options["projects"], ["PROJET_A"])
+        self.assertEqual(options["tax_rates"], [0.0, 0.2])
         engine.dispose.assert_not_called()

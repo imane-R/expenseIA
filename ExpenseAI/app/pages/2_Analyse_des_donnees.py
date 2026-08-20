@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from time import perf_counter
+
+PAGE_STARTED_AT = perf_counter()
+
 import logging
 
 import pandas as pd
@@ -9,6 +13,10 @@ import plotly.express as px
 import streamlit as st
 
 from app.utils.data_loader import load_analysis_data
+from perf_diagnostics import log_duration
+
+
+log_duration("Analyse - imports", PAGE_STARTED_AT)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -37,7 +45,9 @@ DAY_LABELS = {
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner="Chargement de l’analyse…")
 def load_cached_analysis_data() -> pd.DataFrame:
     """Charge les données analytiques anonymes depuis PostgreSQL."""
-    return load_analysis_data()
+    from app.utils.db_resources import get_database_engine
+
+    return load_analysis_data(engine=get_database_engine())
 
 
 def reset_filters() -> None:
@@ -84,6 +94,7 @@ st.caption(
     "normalisées. Les filtres s’appliquent à tous les onglets."
 )
 
+data_started_at = perf_counter()
 try:
     expenses = load_cached_analysis_data()
 except Exception as exc:
@@ -93,6 +104,7 @@ except Exception as exc:
         "Vérifiez la connexion PostgreSQL puis réessayez."
     )
     st.stop()
+log_duration("Analyse - données PostgreSQL", data_started_at)
 
 required_columns = {
     "expense_date",
@@ -493,3 +505,5 @@ with project_tab:
         "Les comparaisons présentent uniquement des agrégats. Aucun code projet "
         "ni identifiant métier n’est exposé."
     )
+
+log_duration("Analyse - total", PAGE_STARTED_AT)

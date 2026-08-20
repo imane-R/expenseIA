@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+from time import perf_counter
+
+PAGE_STARTED_AT = perf_counter()
+
 from datetime import datetime
 import logging
 
 import streamlit as st
 
-from ml.model_metadata import load_model_metadata
+from app.utils.metadata_resource import load_model_metadata_cached
+from perf_diagnostics import log_duration
+
+
+log_duration("À propos - imports", PAGE_STARTED_AT)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -78,12 +86,14 @@ with explanation_column:
         "résultat sert à prioriser les contrôles, jamais à décider automatiquement."
     )
 
+metadata_started_at = perf_counter()
 try:
-    metadata = load_model_metadata()
+    metadata = load_model_metadata_cached()
 except Exception as exc:
     LOGGER.exception("Métadonnées ExpenseAI indisponibles", exc_info=exc)
     st.error("Les informations du modèle sont momentanément indisponibles.")
     st.stop()
+log_duration("À propos - metadata JSON", metadata_started_at)
 
 st.header("Modèle")
 model_columns = st.columns(4)
@@ -173,5 +183,7 @@ with st.expander("Méthodologie du projet"):
 7. Calibration des probabilités.
 8. Analyse d’explicabilité avec SHAP.
 9. Évaluation finale sur un jeu de test séparé.
-"""
+        """
     )
+
+log_duration("À propos - total", PAGE_STARTED_AT)

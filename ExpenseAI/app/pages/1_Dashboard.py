@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from time import perf_counter
+
+PAGE_STARTED_AT = perf_counter()
+
 import logging
 
 import pandas as pd
@@ -9,6 +13,10 @@ import plotly.express as px
 import streamlit as st
 
 from app.utils.data_loader import load_expenses
+from perf_diagnostics import log_duration
+
+
+log_duration("Dashboard - imports", PAGE_STARTED_AT)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -27,7 +35,9 @@ FILTER_KEYS = (
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner="Chargement depuis PostgreSQL…")
 def load_dashboard_data() -> pd.DataFrame:
     """Charge une seule fois les colonnes utiles au dashboard."""
-    return load_expenses()
+    from app.utils.db_resources import get_database_engine
+
+    return load_expenses(engine=get_database_engine())
 
 
 def reset_filters() -> None:
@@ -63,6 +73,7 @@ st.caption(
     "Aucune donnée brute de staging n’est utilisée."
 )
 
+data_started_at = perf_counter()
 try:
     expenses = load_dashboard_data()
 except Exception as exc:  # Le détail technique n'est jamais exposé dans l'interface.
@@ -72,6 +83,7 @@ except Exception as exc:  # Le détail technique n'est jamais exposé dans l'int
         "Vérifiez la configuration de la base et réessayez."
     )
     st.stop()
+log_duration("Dashboard - données PostgreSQL", data_started_at)
 
 if expenses.empty:
     st.error("La requête PostgreSQL n’a retourné aucune dépense à analyser.")
@@ -389,3 +401,5 @@ st.download_button(
     file_name="expenseai_dashboard_agrege.csv",
     mime="text/csv",
 )
+
+log_duration("Dashboard - total", PAGE_STARTED_AT)

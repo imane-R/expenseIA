@@ -1,6 +1,15 @@
 """Page d'accueil de l'application ExpenseAI."""
 
+from time import perf_counter
+
+PAGE_STARTED_AT = perf_counter()
+
 import streamlit as st
+
+from perf_diagnostics import log_duration
+
+
+log_duration("Accueil - imports", PAGE_STARTED_AT)
 
 
 st.title("ExpenseAI")
@@ -20,3 +29,5 @@ du valideur et ses résultats doivent être interprétés avec prudence.
 )
 
 st.info("Utilisez le Dashboard pour explorer l’historique ou la page Prédiction pour analyser une dépense.")
+
+log_duration("Accueil - total", PAGE_STARTED_AT)
