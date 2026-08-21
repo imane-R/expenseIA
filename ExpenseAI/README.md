@@ -164,5 +164,5 @@ le code, les notebooks ou l’historique Git.
 ## État du projet
 
 Cette version couvre l’architecture, l’audit, le preprocessing, la couche
-PostgreSQL, l’analyse exploratoire et le dashboard interactif. Le Machine Learning,
-les prédictions et l’explicabilité ne sont pas encore développés.
+PostgreSQL, l’analyse exploratoire et le dashboard interactif. Le Machine Learning et
+les prédictions.

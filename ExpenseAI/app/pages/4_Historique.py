@@ -215,21 +215,4 @@ st.dataframe(
     width="stretch",
     column_config={
         "Probabilité estimée de refus": st.column_config.ProgressColumn(
-            "Probabilité estimée de refus",
-            format="%.1f %%",
-            min_value=0.0,
-            max_value=100.0,
-        )
-    },
-)
-st.caption(
-    f"{min(display_limit, total_count)} prédiction(s) affichée(s) sur "
-    f"{format_count(total_count)}, de la plus récente à la plus ancienne."
-)
-if len(history) == MAX_HISTORY_ROWS:
-    st.info(
-        f"L’affichage est limité aux {format_count(MAX_HISTORY_ROWS)} prédictions "
-        "les plus récentes afin de préserver les performances."
-    )
-
-log_duration("Historique - total", PAGE_STARTED_AT)
+            "Probabi

@@ -391,15 +391,4 @@ display_summary["Montant TTC total (€)"] = display_summary[
 display_summary["Montant TTC moyen (€)"] = display_summary[
     "Montant TTC moyen (€)"
 ].round(2)
-display_summary["Taux de refus (%)"] = display_summary[
-    "Taux de refus (%)"
-].round(2)
-st.dataframe(display_summary, hide_index=True, width="stretch")
-st.download_button(
-    "Télécharger ce tableau agrégé (CSV)",
-    data=display_summary.to_csv(index=False).encode("utf-8-sig"),
-    file_name="expenseai_dashboard_agrege.csv",
-    mime="text/csv",
-)
-
-log_duration("Dashboard - total", PAGE_STARTED_AT)
+display_sum

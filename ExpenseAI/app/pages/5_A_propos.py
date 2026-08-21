@@ -177,13 +177,4 @@ with st.expander("Méthodologie du projet"):
 1. Audit et contrôle de la qualité des données.
 2. Preprocessing et analyse exploratoire (EDA).
 3. Split groupé pour limiter les fuites entre apprentissage et évaluation.
-4. Validation croisée et comparaison de plusieurs modèles.
-5. Optimisation des hyperparamètres avec GridSearch.
-6. Gestion du déséquilibre entre dépenses approuvées et refusées.
-7. Calibration des probabilités.
-8. Analyse d’explicabilité avec SHAP.
-9. Évaluation finale sur un jeu de test séparé.
-        """
-    )
-
-log_duration("À propos - total", PAGE_STARTED_AT)
+4. Validation croisée et comparaiso

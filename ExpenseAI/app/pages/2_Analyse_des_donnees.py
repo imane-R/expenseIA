@@ -486,24 +486,4 @@ with project_tab:
     )
     billable_figure.update_layout(showlegend=False)
     billable_figure.update_traces(textposition="outside")
-    comparison_columns[0].plotly_chart(billable_figure, width="stretch")
-
-    project_figure = px.bar(
-        project_summary,
-        x="project_status",
-        y="expense_count",
-        text="label",
-        color="project_status",
-        color_discrete_map={"Avec projet": "#2563EB", "Sans projet": "#64748B"},
-        labels={"project_status": "", "expense_count": "Nombre de lignes"},
-        title="Avec projet vs sans projet",
-    )
-    project_figure.update_layout(showlegend=False)
-    project_figure.update_traces(textposition="outside")
-    comparison_columns[1].plotly_chart(project_figure, width="stretch")
-    st.caption(
-        "Les comparaisons présentent uniquement des agrégats. Aucun code projet "
-        "ni identifiant métier n’est exposé."
-    )
-
-log_duration("Analyse - total", PAGE_STARTED_AT)
+    comparison_columns[0].plotly_chart(billable_figure, w
